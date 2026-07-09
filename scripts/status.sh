@@ -2,7 +2,7 @@
 # status.sh — Check bot health on VPS
 # Run on the VPS directly: bash scripts/status.sh
 
-SERVICE="shiva_sniper"
+SERVICE="goldbot"
 PORT="${PORT:-10000}"
 LOG_FILE="${LOG_FILE:-/app/journal.db}"
 

@@ -20,7 +20,7 @@ set -e
 VPS_IP="${VPS_IP:-187.127.136.139}"
 VPS_USER="${VPS_USER:-root}"
 REMOTE_DIR="/app/shiva_sniper_bot"
-SERVICE_NAME="shiva_sniper"
+SERVICE_NAME="goldbot"
 DASHBOARD_PORT="10000"
 
 echo "═══════════════════════════════════════════════════"
