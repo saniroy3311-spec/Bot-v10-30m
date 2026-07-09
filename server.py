@@ -171,7 +171,7 @@ class _Handler(BaseHTTPRequestHandler):
         # ── Static dashboard ──────────────────────────────────────────────────
         if path in ("/", "/dashboard", "/dashboard.html"):
             self._send_file(
-                os.path.join(DASHBOARD_DIR, "dashboard.html"),
+                os.path.join(DASHBOARD_DIR, "dashboard", "dashboard_simple.html"),
                 "text/html; charset=utf-8",
             )
             return
