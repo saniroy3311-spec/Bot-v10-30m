@@ -15,6 +15,16 @@
     --amber: #e8a33d;
     --mono: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
   }
+  body.light {
+    --bg: #f9fafb;
+    --panel: #ffffff;
+    --line: #e5e7eb;
+    --text: #111827;
+    --dim: #4b5563;
+  }
+  body.light thead th {
+    background: #f3f4f6;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -99,7 +109,10 @@
       <div class="title"><span class="dot" id="liveDot"></span><span id="botTitle">BOT — LOADING…</span></div>
       <div class="sub" id="botSub">—</div>
     </div>
-    <div class="status-pill" id="statusPill"><span class="sq"></span><span id="statusText">CONNECTING</span></div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <button id="themeToggle" style="background: var(--line); border: 1px solid var(--line); color: var(--text); border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 11px; font-weight: 600;">☀️ Light Mode</button>
+      <div class="status-pill" id="statusPill"><span class="sq"></span><span id="statusText">CONNECTING</span></div>
+    </div>
   </div>
 
   <div class="grid5">
@@ -254,7 +267,12 @@ async function fetchJSON(url) {
 function renderStatus(status) {
   const live = status.bot_status === 'LIVE';
   document.getElementById('liveDot').style.background = live ? 'var(--green)' : 'var(--red)';
-  document.getElementById('botTitle').textContent = live ? 'BOT — LIVE FEED' : 'BOT — ' + (status.bot_status || 'UNKNOWN');
+  
+  const m = status.market || {};
+  const symbol = m.symbol || 'BTC/USD:USD';
+  const tf = m.timeframe || '30m';
+  document.getElementById('botTitle').textContent = `BOT — ${symbol} (${tf})`;
+  
   document.getElementById('botSub').textContent = 'Last update: ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
 
   const pill = document.getElementById('statusPill');
@@ -315,10 +333,20 @@ function renderRiskAndFilters(status) {
   document.getElementById('mktRsi').textContent = m.rsi ? fmtNum(m.rsi, 1) : '—';
   document.getElementById('mktRegime').textContent = m.regime || '—';
 
-  const badge = (label, ok) => `<span class="badge ${ok ? 'ok' : 'fail'}">${label} ${ok ? 'OK' : 'FAIL'}</span>`;
+  const fmtCompact = (v) => v >= 1000 ? (v / 1000).toFixed(0) + 'K' : (v ? v.toFixed(0) : '—');
+  const badge = (label, ok, valStr = '') => `<span class="badge ${ok ? 'ok' : 'fail'}">${label} ${ok ? 'OK' : 'FAIL'}${valStr}</span>`;
+  
+  let atrStr = '', volStr = '';
+  if (m.atr !== undefined && m.atr_sma !== undefined) {
+    atrStr = ` (${m.atr.toFixed(1)} / ${(m.atr_sma * 1.4).toFixed(1)})`;
+  }
+  if (m.volume !== undefined && m.vol_sma !== undefined) {
+    volStr = ` (${fmtCompact(m.volume)} / ${fmtCompact(m.vol_sma)})`;
+  }
+
   document.getElementById('filtersWrap').innerHTML = [
-    badge('ATR', !!m.atr_ok),
-    badge('VOL', !!m.vol_ok),
+    badge('ATR', !!m.atr_ok, atrStr),
+    badge('VOL', !!m.vol_ok, volStr),
     badge('BODY', !!m.body_ok),
     badge('ALL', !!m.filters_ok),
   ].join('');
@@ -420,6 +448,20 @@ async function refresh() {
 }
 
 refresh();
+
+// Theme Toggle Script
+const toggleBtn = document.getElementById('themeToggle');
+toggleBtn.addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  toggleBtn.textContent = isLight ? '🌙 Dark Mode' : '☀️ Light Mode';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+});
+if (localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light');
+  toggleBtn.textContent = '🌙 Dark Mode';
+}
+
 setInterval(refresh, REFRESH_MS);
 window.addEventListener('resize', () => refresh());
 </script>

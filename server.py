@@ -178,7 +178,39 @@ class _Handler(BaseHTTPRequestHandler):
 
         # ── API routes ────────────────────────────────────────────────────────
         if path == "/api/status":
-            self._send_json({"status": "live" if _bot_live else "offline"})
+            import os
+            import json
+            # Load position.json
+            pos_data = {
+                "side": "FLAT", "is_long": True, "entry_price": 0.0,
+                "qty": 0, "sl": 0.0, "current_sl": 0.0, "tp": 0.0,
+                "trail_stage": 0, "signal_type": "None", "unrealised_pnl": 0.0
+            }
+            try:
+                pos_path = os.path.join(DASHBOARD_DIR, "position.json")
+                if os.path.exists(pos_path):
+                    with open(pos_path, "r") as f:
+                        pos_data = json.load(f)
+            except Exception:
+                pass
+
+            # Load market_snapshot.json
+            mkt_data = {}
+            try:
+                mkt_path = os.path.join(DASHBOARD_DIR, "market_snapshot.json")
+                if os.path.exists(mkt_path):
+                    with open(mkt_path, "r") as f:
+                        mkt_data = json.load(f)
+            except Exception:
+                pass
+
+            status_resp = {
+                "bot_status": "LIVE" if _bot_live else "OFFLINE",
+                "btc_price": mkt_data.get("close", 0.0),
+                "open_position": pos_data,
+                "market": mkt_data,
+            }
+            self._send_json(status_resp)
 
         elif path == "/api/summary":
             data = _journal.get_summary() if _journal else {}

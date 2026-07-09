@@ -360,6 +360,12 @@ class ShivaSniperBot:
                 "position_btc_size": POSITION_BTC_SIZE,
                 "qty_lots":      self._qty_lots,
                 "timestamp":     int(time.time()),
+                "atr":           float(snap.atr),
+                "atr_sma":       float(snap.atr_sma),
+                "volume":        float(snap.volume),
+                "vol_sma":       float(snap.vol_sma),
+                "symbol":        SYMBOL,
+                "timeframe":     CANDLE_TIMEFRAME,
             }
             with open(os.path.join(repo_root, "market_snapshot.json"), "w") as f:
                 json.dump(market, f)
