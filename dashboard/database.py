@@ -25,7 +25,7 @@ def _exec(conn, query, params=()):
     return cursor
 
 def init_databases():
-    conn = get_db_connection()
+    conn = get_db_connection(CLIENTS_DB)
 
     _exec(conn, """
         CREATE TABLE IF NOT EXISTS trades (
