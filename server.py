@@ -178,8 +178,6 @@ class _Handler(BaseHTTPRequestHandler):
 
         # ── API routes ────────────────────────────────────────────────────────
         if path == "/api/status":
-            import os
-            import json
             # Load position.json
             pos_data = {
                 "side": "FLAT", "is_long": True, "entry_price": 0.0,
