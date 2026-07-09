@@ -51,8 +51,9 @@
   .status-pill.err { color: var(--red); border-color: var(--red); }
   .status-pill .sq { width:7px; height:7px; background: currentColor; }
 
-  .grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
-  @media (max-width: 1100px) { .grid5 { grid-template-columns: repeat(2, 1fr); } }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 1100px) { .grid4 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .grid4 { grid-template-columns: 1fr; } }
 
   .card {
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
@@ -96,9 +97,13 @@
   tbody tr:hover { background: rgba(255,255,255,.02); }
   td.num { text-align: right; }
 
-  .empty { padding: 40px; text-align: center; color: var(--dim); }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+  @media (max-width: 768px) {
+    .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .topbar > div { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+    .topbar > div:last-child { justify-content: flex-end; }
+    .table-scroll { overflow-x: auto; }
+    table { min-width: 850px; }
+  }
 </style>
 </head>
 <body>
@@ -115,7 +120,7 @@
     </div>
   </div>
 
-  <div class="grid5">
+  <div class="grid4">
     <div class="card">
       <h3>Position</h3>
       <div class="row"><span class="k">Side</span><span class="v" id="posSide">—</span></div>
@@ -124,16 +129,6 @@
       <div class="row"><span class="k">Current SL</span><span class="v" id="posSL">—</span></div>
       <div class="row"><span class="k">TP</span><span class="v" id="posTP">—</span></div>
       <div class="row"><span class="k">Trail Stage</span><span class="v" id="posTrail">—</span></div>
-    </div>
-
-    <div class="card">
-      <h3>Capital &amp; P&amp;L</h3>
-      <div class="row"><span class="k">Base Capital</span><span class="v" id="capBase">—</span></div>
-      <div class="row"><span class="k">Current Equity</span><span class="v" id="capEquity">—</span></div>
-      <div class="row"><span class="k">Today P&amp;L</span><span class="v" id="capToday">—</span></div>
-      <div class="row"><span class="k">Total P&amp;L</span><span class="v" id="capTotal">—</span></div>
-      <div class="row"><span class="k">Win Rate</span><span class="v" id="capWinrate">—</span></div>
-      <div class="row"><span class="k">Total Trades</span><span class="v" id="capTrades">—</span></div>
     </div>
 
     <div class="card">
@@ -163,14 +158,7 @@
   </div>
 
   <div class="eq-card">
-    <div class="eq-stats">
-      <div class="stat"><div class="k">Starting Cap</div><div class="v" id="eqStart">—</div></div>
-      <div class="stat"><div class="k">Current Equity</div><div class="v" id="eqCurrent">—</div></div>
-      <div class="stat"><div class="k">Peak Equity</div><div class="v" id="eqPeak">—</div></div>
-      <div class="stat"><div class="k">Max Drawdown</div><div class="v" id="eqDD">—</div></div>
-      <div class="stat"><div class="k">Net Return</div><div class="v" id="eqNet">—</div></div>
-    </div>
-    <canvas id="eqCanvas" height="160"></canvas>
+    <canvas id="eqCanvas" height="320"></canvas>
   </div>
 
   <div class="trades-card">
@@ -182,9 +170,15 @@
       <table>
         <thead>
           <tr>
-            <th>#</th><th>Time (IST)</th><th>Side</th><th class="num">Qty</th>
-            <th class="num">Entry Price</th><th class="num">Exit Price</th>
-            <th class="num">Realized P&amp;L ($)</th><th>Exit Reason</th>
+            <th>#</th>
+            <th>Date</th>
+            <th>Entry Time</th>
+            <th>Entry Price</th>
+            <th>Exit Time</th>
+            <th>Exit Price</th>
+            <th>Points Captured</th>
+            <th>Realized P&amp;L ($)</th>
+            <th>Exit Reason</th>
           </tr>
         </thead>
         <tbody id="tradesBody">
@@ -296,23 +290,8 @@ function renderStatus(status) {
 
 function renderCapital(trades, startingCap = 10000) {
   const total = trades.length;
-  const wins = trades.filter(t => (t.net_pnl ?? t.real_pl ?? 0) > 0).length;
   const totalPnl = trades.reduce((s, t) => s + (t.net_pnl ?? t.real_pl ?? 0), 0);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todayPnl = trades
-    .filter(t => (t.entry_time || t.ts || '').slice(0, 10) === todayStr)
-    .reduce((s, t) => s + (t.net_pnl ?? t.real_pl ?? 0), 0);
   const equity = startingCap + totalPnl;
-
-  document.getElementById('capBase').textContent = fmtMoney(startingCap);
-  document.getElementById('capEquity').textContent = fmtMoney(equity);
-  const todayEl = document.getElementById('capToday');
-  todayEl.textContent = fmtMoney(todayPnl); todayEl.className = 'v ' + pnlClass(todayPnl);
-  const totalEl = document.getElementById('capTotal');
-  totalEl.textContent = fmtMoney(totalPnl); totalEl.className = 'v ' + pnlClass(totalPnl);
-  document.getElementById('capWinrate').textContent = total ? ((wins / total) * 100).toFixed(1) + '%' : '—';
-  document.getElementById('capTrades').textContent = total;
-
   return { equity, totalPnl, startingCap };
 }
 
@@ -337,10 +316,10 @@ function renderRiskAndFilters(status) {
   const badge = (label, ok, valStr = '') => `<span class="badge ${ok ? 'ok' : 'fail'}">${label} ${ok ? 'OK' : 'FAIL'}${valStr}</span>`;
   
   let atrStr = '', volStr = '';
-  if (m.atr !== undefined && m.atr_sma !== undefined) {
+  if (m.atr && m.atr_sma) {
     atrStr = ` (${m.atr.toFixed(1)} / ${(m.atr_sma * 1.4).toFixed(1)})`;
   }
-  if (m.volume !== undefined && m.vol_sma !== undefined) {
+  if (m.volume && m.vol_sma) {
     volStr = ` (${fmtCompact(m.volume)} / ${fmtCompact(m.vol_sma)})`;
   }
 
@@ -352,15 +331,16 @@ function renderRiskAndFilters(status) {
   ].join('');
 }
 
-function drawEquityCurve(trades, startingCap) {
+function drawEquityCurve(trades, startingCap = 10000) {
   const canvas = document.getElementById('eqCanvas');
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 32;
-  canvas.width = w * dpr; canvas.height = 160 * dpr;
-  canvas.style.width = w + 'px'; canvas.style.height = '160px';
+  const container = canvas.parentElement;
+  const w = container.clientWidth - 32;
+  const h = 320;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, w, 160);
 
   let equity = startingCap;
   const points = [equity];
@@ -368,59 +348,154 @@ function drawEquityCurve(trades, startingCap) {
 
   const min = Math.min(...points), max = Math.max(...points);
   const range = (max - min) || 1;
-  const pad = 10;
+  const pad = 20;
   const stepX = (w - pad * 2) / Math.max(points.length - 1, 1);
-  const toY = v => 160 - pad - ((v - min) / range) * (160 - pad * 2);
+  const toY = v => h - pad - ((v - min) / range) * (h - pad * 2);
 
-  const grad = ctx.createLinearGradient(0, 0, 0, 160);
-  grad.addColorStop(0, 'rgba(239,91,91,0.28)');
-  grad.addColorStop(1, 'rgba(239,91,91,0.0)');
+  function drawChart(hoverIdx = -1) {
+    ctx.clearRect(0, 0, w, h);
+    
+    // Grid lines
+    ctx.strokeStyle = 'var(--line)';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([4, 4]);
+    for (let i = 1; i < 4; i++) {
+      const y = pad + (i * (h - pad * 2)) / 4;
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(w - pad, y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
 
-  ctx.beginPath();
-  points.forEach((v, i) => { const x = pad + i * stepX; const y = toY(v); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-  ctx.lineTo(pad + (points.length - 1) * stepX, 160 - pad);
-  ctx.lineTo(pad, 160 - pad);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
+    // Gradient fill
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(62, 207, 142, 0.15)');
+    grad.addColorStop(1, 'rgba(62, 207, 142, 0.0)');
 
-  ctx.beginPath();
-  points.forEach((v, i) => { const x = pad + i * stepX; const y = toY(v); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-  ctx.strokeStyle = '#ef5b5b';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+    ctx.beginPath();
+    points.forEach((v, i) => {
+      const x = pad + i * stepX;
+      const y = toY(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.lineTo(pad + (points.length - 1) * stepX, h - pad);
+    ctx.lineTo(pad, h - pad);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
 
-  const peak = Math.max(...points);
-  const dd = peak > 0 ? ((peak - Math.min(...points.slice(points.indexOf(peak)))) / peak) * 100 : 0;
+    // Main line
+    ctx.beginPath();
+    points.forEach((v, i) => {
+      const x = pad + i * stepX;
+      const y = toY(v);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = 'var(--green)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
 
-  document.getElementById('eqStart').textContent = fmtMoney(startingCap);
-  document.getElementById('eqCurrent').textContent = fmtMoney(equity);
-  document.getElementById('eqPeak').textContent = fmtMoney(peak);
-  document.getElementById('eqDD').textContent = dd.toFixed(2) + '%';
-  const net = equity - startingCap;
-  const netEl = document.getElementById('eqNet');
-  netEl.textContent = fmtMoney(net) + ' (' + ((net / startingCap) * 100).toFixed(2) + '%)';
-  netEl.className = 'v ' + pnlClass(net);
+    // Interaction hover line & point & tooltip
+    if (hoverIdx >= 0 && hoverIdx < points.length) {
+      const x = pad + hoverIdx * stepX;
+      const y = toY(points[hoverIdx]);
+
+      ctx.strokeStyle = 'var(--dim)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(x, pad);
+      ctx.lineTo(x, h - pad);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = 'var(--green)';
+      ctx.strokeStyle = 'var(--panel)';
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+
+      const tooltipText = hoverIdx === 0 ? `Starting: ${fmtMoney(startingCap)}` : `Trade #${hoverIdx}: ${fmtMoney(points[hoverIdx])}`;
+      ctx.font = '11px sans-serif';
+      const textWidth = ctx.measureText(tooltipText).width;
+      const boxW = textWidth + 16;
+      const boxH = 24;
+      let boxX = x + 10;
+      if (boxX + boxW > w) boxX = x - boxW - 10;
+      let boxY = y - 12;
+      if (boxY < pad) boxY = pad;
+
+      ctx.fillStyle = 'var(--panel)';
+      ctx.strokeStyle = 'var(--line)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(boxX, boxY, boxW, boxH, 4);
+      } else {
+        ctx.rect(boxX, boxY, boxW, boxH);
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'var(--text)';
+      ctx.fillText(tooltipText, boxX + 8, boxY + 16);
+    }
+  }
+
+  drawChart();
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const hoverIdx = Math.round((mouseX - pad) / stepX);
+    if (hoverIdx >= 0 && hoverIdx < points.length) {
+      drawChart(hoverIdx);
+    }
+  };
+  canvas.onmouseleave = () => {
+    drawChart();
+  };
+}
+
+function fmtTimeOnly(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
+  } catch (e) { return ts; }
 }
 
 function renderTrades(trades) {
   const body = document.getElementById('tradesBody');
   document.getElementById('tradeCount').textContent = trades.length + ' trades';
   if (!trades.length) {
-    body.innerHTML = '<tr><td colspan="8" class="empty">No trades yet</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="empty">No trades yet</td></tr>';
     return;
   }
   const last200 = trades.slice(-200).reverse();
   body.innerHTML = last200.map((t, i) => {
     const pnl = t.net_pnl ?? t.real_pl ?? 0;
-    const side = (t.side || (t.is_long ? 'LONG' : 'SHORT') || '').toUpperCase();
+    const pts = t.points_captured !== undefined ? t.points_captured : '—';
+    
+    const entryTs = t.entry_time || '';
+    const exitTs = t.ts || '';
+    
+    const dateStr = entryTs ? entryTs.slice(0, 10) : (exitTs ? exitTs.slice(0, 10) : '—');
+    const entryTimeOnly = entryTs ? fmtTimeOnly(entryTs) : '—';
+    const exitTimeOnly = exitTs ? fmtTimeOnly(exitTs) : '—';
+
     return `<tr>
       <td>#${last200.length - i}</td>
-      <td>${fmtIST(t.entry_time || t.ts || '')}</td>
-      <td><span class="badge ${side === 'LONG' ? 'long' : 'short'}">${side}</span></td>
-      <td class="num">${t.qty ?? '—'}</td>
+      <td>${dateStr}</td>
+      <td>${entryTimeOnly}</td>
       <td class="num">${fmtNum(t.entry_price)}</td>
+      <td>${exitTimeOnly}</td>
       <td class="num">${fmtNum(t.exit_price)}</td>
+      <td class="num ${pnlClass(pts)}">${pts > 0 ? '+' : ''}${fmtNum(pts)}</td>
       <td class="num ${pnlClass(pnl)}">${fmtMoney(pnl)}</td>
       <td>${t.exit_reason || '—'}</td>
     </tr>`;

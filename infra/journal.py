@@ -182,6 +182,7 @@ class Journal:
             for ddl in [DDL_TRADES_SQLITE, DDL_OPEN_TRADES_SQLITE, DDL_BOT_EVENTS_SQLITE]:
                 self._execute(ddl)
         self._migrate_add_points_column()
+        self._migrate_add_entry_time_column()
 
     def _migrate_add_points_column(self) -> None:
         """ALTER TABLE on existing installs — safe to run every startup."""
@@ -204,6 +205,27 @@ class Journal:
         except Exception as e:
             logger.error(f"_migrate_add_points_column failed: {e}")
 
+    def _migrate_add_entry_time_column(self) -> None:
+        """ALTER TABLE to add entry_time — safe to run every startup."""
+        try:
+            if self._driver == "postgres":
+                self._execute(
+                    "ALTER TABLE trades ADD COLUMN IF NOT EXISTS "
+                    "entry_time TIMESTAMPTZ"
+                )
+            else:
+                cur = self._cursor()
+                cur.execute("PRAGMA table_info(trades)")
+                cols = {row[1] for row in cur.fetchall()}
+                if "entry_time" not in cols:
+                    self._execute(
+                        "ALTER TABLE trades ADD COLUMN "
+                        "entry_time TEXT"
+                    )
+                    logger.info("Migration: added trades.entry_time column")
+        except Exception as e:
+            logger.error(f"_migrate_add_entry_time_column failed: {e}")
+
     def _ph(self) -> str:
         return "%s" if self._driver == "postgres" else "?"
 
@@ -216,7 +238,8 @@ class Journal:
                   entry_price: float, exit_price: float,
                   sl: float, tp: float, atr: float,
                   qty: int, real_pl: float = None,
-                  exit_reason: str = "", trail_stage: int = 0) -> None:
+                  exit_reason: str = "", trail_stage: int = 0,
+                  entry_time: str = None) -> None:
         """
         Log a completed trade.
 
@@ -231,14 +254,14 @@ class Journal:
         sql = f"""
             INSERT INTO trades
             (ts, signal_type, is_long, entry_price, exit_price,
-             sl, tp, atr, qty, points_captured, real_pl, exit_reason, trail_stage)
-            VALUES ({p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p})
+             sl, tp, atr, qty, points_captured, real_pl, exit_reason, trail_stage, entry_time)
+            VALUES ({p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p},{p})
         """
         try:
             self._execute(sql, (
                 self._now(), signal_type, bool(is_long),
                 entry_price, exit_price, sl, tp, atr,
-                qty, points, real_pl, exit_reason, trail_stage,
+                qty, points, real_pl, exit_reason, trail_stage, entry_time,
             ))
             logger.info(
                 f"Trade logged [{self._driver}] | "
@@ -429,7 +452,7 @@ class Journal:
             cur.execute(f"""
                 SELECT ts, signal_type, is_long, entry_price, exit_price,
                        sl, tp, atr, qty, points_captured,
-                       real_pl, exit_reason, trail_stage
+                       real_pl, exit_reason, trail_stage, entry_time
                 FROM trades
                 ORDER BY id DESC
                 LIMIT {self._ph()}
@@ -437,7 +460,7 @@ class Journal:
             rows = cur.fetchall()
             keys = ["ts", "signal_type", "is_long", "entry_price", "exit_price",
                     "sl", "tp", "atr", "qty", "points_captured",
-                    "real_pl", "exit_reason", "trail_stage"]
+                    "real_pl", "exit_reason", "trail_stage", "entry_time"]
             return [dict(zip(keys, row)) for row in rows]
         except Exception as e:
             logger.error(f"get_trades failed: {e}")

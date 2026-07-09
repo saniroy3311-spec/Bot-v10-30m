@@ -720,6 +720,14 @@ class ShivaSniperBot:
 
         try:
             if risk:
+                entry_time = None
+                try:
+                    open_pos = self._journal.get_open_trade()
+                    if open_pos:
+                        entry_time = open_pos.get("opened_at")
+                except Exception as entry_time_err:
+                    logger.warning(f"[EXIT] Failed to read entry time: {entry_time_err}")
+
                 self._journal.log_trade(
                     signal_type = self._signal_type,
                     is_long     = risk.is_long,
@@ -732,6 +740,7 @@ class ShivaSniperBot:
                     real_pl     = pl,
                     exit_reason = reason,
                     trail_stage = self._trail_state.stage if self._trail_state else 0,
+                    entry_time  = entry_time,
                 )
                 self._journal.close_open_trade()
         except Exception as e:
