@@ -177,6 +177,13 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if path in ("/backtest", "/backtest.html"):
+                self._send_file(
+                    os.path.join(DASHBOARD_DIR, "dashboard", "backtest_report.html"),
+                    "text/html; charset=utf-8",
+                )
+                return
+
             # ── API routes ────────────────────────────────────────────────────────
             if path == "/api/status":
                 # Load position.json

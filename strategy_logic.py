@@ -389,12 +389,9 @@ def max_sl_hit(current_price: float, entry_price: float, atr: float, is_long: bo
 
 
 def calc_real_pl(entry_price: float, exit_price: float, is_long: bool, qty: int) -> float:
-    # FIX-COMM: Exit orders on Delta India are bracket/limit → maker fee = 0%.
-    # Only the entry leg incurs a taker fee (COMMISSION_PCT).
-    # Old code charged BOTH legs: (entry+exit) * qty * (COMMISSION_PCT*2) — WRONG.
-    # This matches risk/calculator.py calc_real_pl exactly.
-    raw_pl = (exit_price - entry_price) * qty if is_long else (entry_price - exit_price) * qty
-    comm   = entry_price * qty * COMMISSION_PCT
+    # Multiply by 0.001 (USD_PER_POINT_LOT) to convert to actual USD P&L
+    raw_pl = (exit_price - entry_price) * qty * 0.001 if is_long else (entry_price - exit_price) * qty * 0.001
+    comm   = entry_price * qty * 0.001 * COMMISSION_PCT
     return raw_pl - comm
 
 

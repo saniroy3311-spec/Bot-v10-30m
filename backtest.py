@@ -227,35 +227,7 @@ def run_backtest(df: pd.DataFrame, signal_log_path: Optional[str] = None) -> lis
             })
 
         if in_position and cur is not None:
-            if cur_is_long:
-                peak_price = max(peak_price, high)
-                peak_profit_dist = max(0.0, peak_price - cur_entry_price)
-                current_profit_dist_close = close - cur_entry_price
-            else:
-                peak_price = min(peak_price, low)
-                peak_profit_dist = max(0.0, cur_entry_price - peak_price)
-                current_profit_dist_close = cur_entry_price - close
-
-            if not be_done and should_trigger_be(current_profit_dist_close, cur_atr):
-                be_done = True
-                if cur_is_long and cur_entry_price > cur_sl:
-                    cur_sl = cur_entry_price
-                elif (not cur_is_long) and cur_entry_price < cur_sl:
-                    cur_sl = cur_entry_price
-
-            new_stage = upgrade_trail_stage(trail_stage, peak_profit_dist, cur_atr)
-            if new_stage > trail_stage:
-                trail_stage = new_stage
-
-            trail_sl = compute_trail_sl(
-                trail_stage, peak_price, peak_profit_dist, cur_is_long, cur_atr
-            )
-            if trail_sl is not None:
-                if cur_is_long and trail_sl > cur_sl:
-                    cur_sl = trail_sl
-                elif (not cur_is_long) and trail_sl < cur_sl:
-                    cur_sl = trail_sl
-
+            # 1. Evaluate exits using stop/target prices active from the previous bar / entry
             max_sl_active = (i > entry_bar_idx) and not max_sl_fired
             threshold = max_sl_threshold(cur_atr)
             if cur_is_long:
@@ -296,6 +268,36 @@ def run_backtest(df: pd.DataFrame, signal_log_path: Optional[str] = None) -> lis
                 in_position = False
                 cur = None
                 continue
+
+            # 2. If no exit occurred, update trailing stages / BE stops for the NEXT bar
+            if cur_is_long:
+                peak_price = max(peak_price, high)
+                peak_profit_dist = max(0.0, peak_price - cur_entry_price)
+                current_profit_dist_close = close - cur_entry_price
+            else:
+                peak_price = min(peak_price, low)
+                peak_profit_dist = max(0.0, cur_entry_price - peak_price)
+                current_profit_dist_close = cur_entry_price - close
+
+            if not be_done and should_trigger_be(current_profit_dist_close, cur_atr):
+                be_done = True
+                if cur_is_long and cur_entry_price > cur_sl:
+                    cur_sl = cur_entry_price
+                elif (not cur_is_long) and cur_entry_price < cur_sl:
+                    cur_sl = cur_entry_price
+
+            new_stage = upgrade_trail_stage(trail_stage, peak_profit_dist, cur_atr)
+            if new_stage > trail_stage:
+                trail_stage = new_stage
+
+            trail_sl = compute_trail_sl(
+                trail_stage, peak_price, peak_profit_dist, cur_is_long, cur_atr
+            )
+            if trail_sl is not None:
+                if cur_is_long and trail_sl > cur_sl:
+                    cur_sl = trail_sl
+                elif (not cur_is_long) and trail_sl < cur_sl:
+                    cur_sl = trail_sl
 
         if not in_position and pending_signal is None:
             snap = _row_to_snap(row, prev_row)
