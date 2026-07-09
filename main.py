@@ -794,10 +794,11 @@ def _start_client_dashboard() -> None:
         import uvicorn
         from dashboard.main import app as _client_app
 
+        client_port = int(__import__("os").environ.get("CLIENT_DASHBOARD_PORT", "8080"))
         cfg = uvicorn.Config(
             _client_app,
             host="0.0.0.0",
-            port=int(__import__("os").environ.get("CLIENT_DASHBOARD_PORT", "8080")),
+            port=client_port,
             log_level="warning",
         )
         server = uvicorn.Server(cfg)
@@ -808,7 +809,7 @@ def _start_client_dashboard() -> None:
 
         t = _threading.Thread(target=_run, daemon=True, name="client-dashboard")
         t.start()
-        logger.info("Client dashboard LIVE → http://0.0.0.0:8080")
+        logger.info(f"Client dashboard LIVE → http://0.0.0.0:{client_port}")
     except Exception as exc:
         logger.warning(f"[CLIENT DASH] Could not start client dashboard: {exc}")
 

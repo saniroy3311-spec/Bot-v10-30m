@@ -531,7 +531,9 @@ def update_settings(settings: SettingsUpdateSchema):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    import os
+    port = int(os.environ.get("CLIENT_DASHBOARD_PORT", "8080"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 @app.get("/api/candles")
 async def get_candles(limit: int = 200):
