@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bot Dashboard</title>
 <style>
   :root {
@@ -101,8 +102,21 @@
     .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
     .topbar > div { width: 100%; display: flex; justify-content: space-between; align-items: center; }
     .topbar > div:last-child { justify-content: flex-end; }
-    .table-scroll { overflow-x: auto; }
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { min-width: 850px; }
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 8px; }
+    .wrap { padding: 4px; }
+    .topbar { padding: 10px 14px; }
+    .topbar .title { font-size: 12px; }
+    .topbar .sub { font-size: 9.5px; }
+    .card { padding: 10px 12px; }
+    .row { font-size: 11px; }
+    .badge { font-size: 9px; padding: 1px 6px; }
+    .eq-card { padding: 10px; }
+    #eqCanvas { height: 220px !important; }
   }
 </style>
 </head>
@@ -337,7 +351,7 @@ function drawEquityCurve(trades, startingCap = 10000) {
   const dpr = window.devicePixelRatio || 1;
   const container = canvas.parentElement;
   const w = container.clientWidth - 32;
-  const h = 320;
+  const h = window.innerWidth <= 600 ? 220 : 320;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
