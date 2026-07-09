@@ -4,7 +4,7 @@
 
 SERVICE="goldbot"
 PORT="${PORT:-10000}"
-LOG_FILE="${LOG_FILE:-/app/journal.db}"
+LOG_FILE="${LOG_FILE:-/app/goldbot/journal.db}"
 
 echo "═══════════════════════════════════════"
 echo "  Shiva Sniper v6.5 — Status Check"

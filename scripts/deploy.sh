@@ -19,7 +19,7 @@ set -e
 
 VPS_IP="${VPS_IP:-187.127.136.139}"
 VPS_USER="${VPS_USER:-root}"
-REMOTE_DIR="/app/shiva_sniper_bot"
+REMOTE_DIR="/app/goldbot"
 SERVICE_NAME="goldbot"
 DASHBOARD_PORT="10000"
 
