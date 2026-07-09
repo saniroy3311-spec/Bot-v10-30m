@@ -378,6 +378,54 @@ class TrailMonitor:
         self._pos_poll_ticks   : int = 0
         POSITION_POLL_TICKS    = 1   # check every tick-loop iteration (5s)
 
+    def _persist_state(self) -> None:
+        if not self._running or self._risk is None or self._state is None:
+            return
+        state = self._state
+        risk = self._risk
+        # 1. Update SQLite open_trades
+        try:
+            self._journal.update_open_trade(
+                trail_stage = int(state.stage),
+                current_sl  = float(state.current_sl),
+                peak_price  = float(state.best_price)
+            )
+        except Exception as e:
+            logger.error(f"[PERSIST] SQLite update failed: {e}")
+        # 2. Update memory.json
+        try:
+            from infra.memory import Memory
+            risk_dict = {
+                "entry_price": float(risk.entry_price),
+                "sl": float(risk.sl),
+                "tp": float(risk.tp),
+                "stop_dist": float(risk.stop_dist),
+                "atr": float(risk.atr),
+                "is_long": bool(risk.is_long),
+                "is_trend": bool(risk.is_trend),
+                "entry_bar_open": float(risk.entry_bar_open),
+                "signal_close": float(risk.signal_close)
+            }
+            trail_dict = {
+                "stage": int(state.stage),
+                "current_sl": float(state.current_sl),
+                "peak_price": float(state.peak_price),
+                "be_done": bool(state.be_done),
+                "max_sl_fired": bool(state.max_sl_fired),
+                "trail_armed": bool(state.trail_armed),
+                "best_price": float(state.best_price)
+            }
+            Memory.save(
+                in_position=True,
+                signal_type=getattr(risk, "signal_type", "None"),
+                qty_lots=int(getattr(risk, "qty", 0)),
+                entry_bar_boundary_ms=int(self._entry_bar_end_ms),
+                risk=risk_dict,
+                trail_state=trail_dict
+            )
+        except Exception as e:
+            logger.error(f"[PERSIST] memory.json save failed: {e}")
+
     # ── Start / Stop ──────────────────────────────────────────────────────────
     def start(
         self,
@@ -443,6 +491,7 @@ class TrailMonitor:
         ) + BAR_PERIOD_MS
 
         self._task = asyncio.get_running_loop().create_task(self._tick_loop())
+        self._persist_state()
 
         logger.info(
             f"[TRAIL] Started | entry={risk_levels.entry_price:.2f}  "
@@ -623,6 +672,8 @@ class TrailMonitor:
             asyncio.get_running_loop().create_task(
                 self._fire_exit(exit_px, reason, source="bar_close")
             )
+        else:
+            self._persist_state()
 
     # ── Live ticks — Binance WS feed (offset-adjusted) ────────────────────────
     async def on_price_tick(self, price: float, source: str = "binance") -> None:
@@ -1135,12 +1186,14 @@ class TrailMonitor:
                 f"(stage={state.stage} best={state.best_price:.2f} src={source}) "
             )
             state.current_sl = new_sl
+            self._persist_state()
         elif not is_long and new_sl  < state.current_sl:
             logger.info(
                 f"[TRAIL] SL: {state.current_sl:.2f}→{new_sl:.2f}  "
                 f"(stage={state.stage} best={state.best_price:.2f} src={source}) "
             )
             state.current_sl = new_sl
+            self._persist_state()
 
     def _activate_be(
         self,
@@ -1166,6 +1219,7 @@ class TrailMonitor:
                 f"[TRAIL] Breakeven noted ({source}): trail SL {state.current_sl:.2f}  "
                 f"already past entry {be_sl:.2f} — no SL change "
             )
+        self._persist_state()
 
     # ── WS candle peak update ──────────────────────────────────────────────────
     def push_ws_candle(self, high: float, low: float, source: str = "binance", close: float = 0.0, **kwargs) -> None:

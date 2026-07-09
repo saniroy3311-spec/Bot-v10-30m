@@ -60,6 +60,8 @@ class RiskLevels:
     is_trend:        bool
     entry_bar_open:  float = 0.0
     signal_close:    float = 0.0  # bar close that generated the signal
+    qty:             int = 0
+    signal_type:     str = "None"
 
 
 @dataclass

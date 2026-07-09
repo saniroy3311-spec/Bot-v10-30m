@@ -68,6 +68,7 @@ from infra.telegram_controller import TelegramController, EngineState
 from infra.whatsapp            import WhatsApp
 # from infra.whatsapp_controller import WhatsAppController  # disabled
 from infra.journal             import Journal
+from infra.memory              import Memory
 from risk.lot_sizing           import btc_to_lots
 import server as _dashboard
 import threading as _threading
@@ -166,16 +167,75 @@ class ShivaSniperBot:
         # ── Startup recovery: adopt any pre-existing open position ─────────────
         existing = await self._order_mgr.fetch_open_position()
         
-        # FIX: Validate local database vs actual exchange reality
+        # Load state from memory.json
+        mem_state = Memory.load()
+        
+        # Validate local database vs actual exchange reality
         try:
             open_row = self._journal.get_open_trade()
+            
             if open_row and not existing:
                 logger.info("[STARTUP] Database ghost row detected but Delta Exchange is FLAT. Purging local trade memory.")
                 self._journal.clear_open_trade()
+                Memory.clear()
+                open_row = None
+            elif not open_row and existing and mem_state.get("in_position"):
+                logger.info("[STARTUP] SQLite open_trades is empty but memory.json shows active trade. Restoring to SQLite.")
+                risk_data = mem_state.get("risk") or {}
+                if risk_data:
+                    self._journal.open_trade(
+                        signal_type = mem_state.get("signal_type", "RECOVERED"),
+                        is_long     = bool(risk_data.get("is_long", existing["is_long"])),
+                        entry_price = float(risk_data.get("entry_price", existing["entry_price"])),
+                        sl          = float(risk_data.get("sl", 0.0)),
+                        tp          = float(risk_data.get("tp", 0.0)),
+                        atr         = float(risk_data.get("atr", 0.0)),
+                        qty         = int(mem_state.get("qty_lots", self._qty_lots))
+                    )
+                    trail_data = mem_state.get("trail_state") or {}
+                    if trail_data:
+                        self._journal.update_open_trade(
+                            trail_stage = int(trail_data.get("stage", 0)),
+                            current_sl  = float(trail_data.get("current_sl", 0.0)),
+                            peak_price  = float(trail_data.get("best_price", 0.0))
+                        )
+                    open_row = self._journal.get_open_trade()
+            elif open_row and not mem_state.get("in_position"):
+                logger.info("[STARTUP] memory.json is empty but SQLite shows active trade. Restoring memory.json.")
+                risk_dict = {
+                    "entry_price": float(open_row.get("entry_price", existing["entry_price"] if existing else 0.0)),
+                    "sl": float(open_row.get("sl", 0.0)),
+                    "tp": float(open_row.get("tp", 0.0)),
+                    "stop_dist": float(abs(open_row.get("sl", 0.0) - open_row.get("entry_price", 0.0))),
+                    "atr": float(open_row.get("atr", 0.0)),
+                    "is_long": bool(open_row.get("is_long", True)),
+                    "is_trend": True,
+                    "entry_bar_open": 0.0,
+                    "signal_close": float(open_row.get("entry_price", 0.0))
+                }
+                trail_dict = {
+                    "stage": int(open_row.get("trail_stage", 0)),
+                    "current_sl": float(open_row.get("current_sl", open_row.get("sl", 0.0))),
+                    "peak_price": float(open_row.get("peak_price", 0.0)),
+                    "be_done": bool(open_row.get("trail_stage", 0) > 0),
+                    "max_sl_fired": False,
+                    "trail_armed": bool(open_row.get("trail_stage", 0) > 0),
+                    "best_price": float(open_row.get("peak_price", 0.0))
+                }
+                Memory.save(
+                    in_position=True,
+                    signal_type=open_row.get("signal_type", "RECOVERED"),
+                    qty_lots=int(open_row.get("qty", self._qty_lots)),
+                    entry_bar_boundary_ms=0,
+                    risk=risk_dict,
+                    trail_state=trail_dict
+                )
         except Exception as je:
             logger.warning(f"[STARTUP] Local journal state verification anomaly: {je}")
 
         if existing:
+            _qty = open_row.get("qty", self._qty_lots) if open_row else self._qty_lots
+            _sig_type = open_row.get("signal_type", "RECOVERED") if open_row else "RECOVERED"
             logger.warning(
                 f"[STARTUP] Open position detected — will resume trail on next "
                 f"bar close. is_long={existing['is_long']} "
@@ -184,14 +244,16 @@ class ShivaSniperBot:
             self._in_position = True
             self._risk = RiskLevels(
                 entry_price = existing["entry_price"],
-                sl          = 0.0,
-                tp          = 0.0,
-                stop_dist   = 0.0,
-                atr         = 0.0,
+                sl          = float(open_row.get("sl", 0.0)) if open_row else 0.0,
+                tp          = float(open_row.get("tp", 0.0)) if open_row else 0.0,
+                stop_dist   = float(abs(open_row.get("sl", 0.0) - existing["entry_price"])) if open_row else 0.0,
+                atr         = float(open_row.get("atr", 0.0)) if open_row else 0.0,
                 is_long     = existing["is_long"],
                 is_trend    = True,
+                qty         = _qty,
+                signal_type = _sig_type,
             )
-            self._signal_type = "RECOVERED"
+            self._signal_type = _sig_type
             await self._telegram.send(
                 f"⚠️ <b>Position Recovery</b>\n"
                 f"Bot restarted mid-trade.\n"
@@ -425,6 +487,8 @@ class ShivaSniperBot:
                             is_long        = self._risk.is_long,
                             is_trend       = self._risk.is_trend,
                             signal_close   = _signal_close,
+                            qty            = open_row.get("qty", self._qty_lots),
+                            signal_type    = open_row.get("signal_type", "RECOVERED"),
                         )
                         current_sl = float(open_row.get("current_sl", open_row["sl"]))
                     else:
@@ -558,6 +622,8 @@ class ShivaSniperBot:
                 is_trend       = risk_pre.is_trend,
                 entry_bar_open = snap.open,
                 signal_close   = snap.close,
+                qty            = self._qty_lots,
+                signal_type    = sig.signal_type.value,
             )
 
             self._in_position  = True
@@ -681,6 +747,7 @@ class ShivaSniperBot:
         self._risk         = None
         self._trail_state  = None
         self._signal_type  = "None"
+        Memory.clear()
 
     async def run(self) -> None:
         await self.initialize()
