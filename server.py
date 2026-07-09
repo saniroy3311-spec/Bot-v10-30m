@@ -159,77 +159,85 @@ class _Handler(BaseHTTPRequestHandler):
         return False
 
     def do_GET(self):
-        # auth disabled
-        pass
-        if False:
-            return
+        try:
+            # auth disabled
+            pass
+            if False:
+                return
 
-        parsed = urlparse(self.path)
-        path   = parsed.path
-        params = parse_qs(parsed.query)
+            parsed = urlparse(self.path)
+            path   = parsed.path
+            params = parse_qs(parsed.query)
 
-        # ── Static dashboard ──────────────────────────────────────────────────
-        if path in ("/", "/dashboard", "/dashboard.html"):
-            self._send_file(
-                os.path.join(DASHBOARD_DIR, "dashboard", "dashboard_simple.html"),
-                "text/html; charset=utf-8",
-            )
-            return
+            # ── Static dashboard ──────────────────────────────────────────────────
+            if path in ("/", "/dashboard", "/dashboard.html"):
+                self._send_file(
+                    os.path.join(DASHBOARD_DIR, "dashboard", "dashboard_simple.html"),
+                    "text/html; charset=utf-8",
+                )
+                return
 
-        # ── API routes ────────────────────────────────────────────────────────
-        if path == "/api/status":
-            # Load position.json
-            pos_data = {
-                "side": "FLAT", "is_long": True, "entry_price": 0.0,
-                "qty": 0, "sl": 0.0, "current_sl": 0.0, "tp": 0.0,
-                "trail_stage": 0, "signal_type": "None", "unrealised_pnl": 0.0
-            }
+            # ── API routes ────────────────────────────────────────────────────────
+            if path == "/api/status":
+                # Load position.json
+                pos_data = {
+                    "side": "FLAT", "is_long": True, "entry_price": 0.0,
+                    "qty": 0, "sl": 0.0, "current_sl": 0.0, "tp": 0.0,
+                    "trail_stage": 0, "signal_type": "None", "unrealised_pnl": 0.0
+                }
+                try:
+                    pos_path = os.path.join(DASHBOARD_DIR, "position.json")
+                    if os.path.exists(pos_path):
+                        with open(pos_path, "r") as f:
+                            pos_data = json.load(f)
+                except Exception:
+                    pass
+
+                # Load market_snapshot.json
+                mkt_data = {}
+                try:
+                    mkt_path = os.path.join(DASHBOARD_DIR, "market_snapshot.json")
+                    if os.path.exists(mkt_path):
+                        with open(mkt_path, "r") as f:
+                            mkt_data = json.load(f)
+                except Exception:
+                    pass
+
+                status_resp = {
+                    "bot_status": "LIVE" if _bot_live else "OFFLINE",
+                    "btc_price": mkt_data.get("close", 0.0),
+                    "open_position": pos_data,
+                    "market": mkt_data,
+                }
+                self._send_json(status_resp)
+
+            elif path == "/api/summary":
+                data = _journal.get_summary() if _journal else {}
+                self._send_json(data)
+
+            elif path == "/api/trades":
+                limit = int(params.get("limit", ["50"])[0])
+                data  = _journal.get_trades(limit=limit) if _journal else []
+                self._send_json(data)
+
+            elif path == "/api/position":
+                data = _journal.get_open_trade() if _journal else None
+                self._send_json(data or {})
+
+            elif path == "/api/candles":
+                limit   = int(params.get("limit", ["200"])[0])
+                candles = _fetch_candles_binance(limit)
+                self._send_json(candles)
+
+            else:
+                self._send_json({"error": "not found"}, 404)
+
+        except Exception as e:
+            logger.error(f"[SERVER] Error handling GET {self.path}: {e}", exc_info=True)
             try:
-                pos_path = os.path.join(DASHBOARD_DIR, "position.json")
-                if os.path.exists(pos_path):
-                    with open(pos_path, "r") as f:
-                        pos_data = json.load(f)
+                self._send_json({"error": "internal server error", "details": str(e)}, 500)
             except Exception:
                 pass
-
-            # Load market_snapshot.json
-            mkt_data = {}
-            try:
-                mkt_path = os.path.join(DASHBOARD_DIR, "market_snapshot.json")
-                if os.path.exists(mkt_path):
-                    with open(mkt_path, "r") as f:
-                        mkt_data = json.load(f)
-            except Exception:
-                pass
-
-            status_resp = {
-                "bot_status": "LIVE" if _bot_live else "OFFLINE",
-                "btc_price": mkt_data.get("close", 0.0),
-                "open_position": pos_data,
-                "market": mkt_data,
-            }
-            self._send_json(status_resp)
-
-        elif path == "/api/summary":
-            data = _journal.get_summary() if _journal else {}
-            self._send_json(data)
-
-        elif path == "/api/trades":
-            limit = int(params.get("limit", ["50"])[0])
-            data  = _journal.get_trades(limit=limit) if _journal else []
-            self._send_json(data)
-
-        elif path == "/api/position":
-            data = _journal.get_open_trade() if _journal else None
-            self._send_json(data or {})
-
-        elif path == "/api/candles":
-            limit   = int(params.get("limit", ["200"])[0])
-            candles = _fetch_candles_binance(limit)
-            self._send_json(candles)
-
-        else:
-            self._send_json({"error": "not found"}, 404)
 
 
 # ── Bind helper — rides out a slow-dying previous instance ─────────────────────
