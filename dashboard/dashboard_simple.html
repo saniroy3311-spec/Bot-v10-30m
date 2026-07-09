@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bot Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #12161f;
+    --line: #232838;
+    --text: #e8eaf0;
+    --dim: #7c8496;
+    --green: #3ecf8e;
+    --red: #ef5b5b;
+    --amber: #e8a33d;
+    --mono: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
+
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 14px;
+  }
+  .topbar .title { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+  .topbar .title .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); margin-right:8px; box-shadow:0 0 6px var(--green); }
+  .topbar .sub { color: var(--dim); font-size: 11px; margin-top: 2px; font-family: var(--mono); }
+  .status-pill {
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    padding: 5px 12px; border-radius: 5px; border: 1px solid var(--green); color: var(--green);
+    display:flex; align-items:center; gap:6px;
+  }
+  .status-pill.err { color: var(--red); border-color: var(--red); }
+  .status-pill .sq { width:7px; height:7px; background: currentColor; }
+
+  .grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 1100px) { .grid5 { grid-template-columns: repeat(2, 1fr); } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+  }
+  .card h3 {
+    margin: 0 0 10px 0; font-size: 10.5px; letter-spacing: .8px; color: var(--dim);
+    text-transform: uppercase; font-weight: 700; border-bottom: 1px solid var(--line); padding-bottom: 8px;
+  }
+  .row { display:flex; justify-content: space-between; align-items:center; padding: 4px 0; }
+  .row .k { color: var(--dim); }
+  .row .v { font-family: var(--mono); font-weight: 600; text-align: right; }
+  .v.pos { color: var(--green); }
+  .v.neg { color: var(--red); }
+  .badge { font-family: var(--mono); font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .badge.long { background: rgba(62,207,142,.12); color: var(--green); border: 1px solid rgba(62,207,142,.35); }
+  .badge.short { background: rgba(239,91,91,.12); color: var(--red); border: 1px solid rgba(239,91,91,.35); }
+  .badge.flat { background: rgba(124,132,150,.12); color: var(--dim); border: 1px solid var(--line); }
+  .badge.ok { background: rgba(62,207,142,.12); color: var(--green); border: 1px solid rgba(62,207,142,.35); }
+  .badge.fail { background: rgba(239,91,91,.1); color: var(--red); border: 1px solid rgba(239,91,91,.3); }
+
+  .filters-wrap { display:flex; flex-wrap:wrap; gap:6px; }
+
+  .eq-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+  .eq-stats { display:flex; gap: 28px; margin-bottom: 10px; flex-wrap: wrap; }
+  .eq-stats .stat .k { color: var(--dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; }
+  .eq-stats .stat .v { font-family: var(--mono); font-size: 15px; font-weight: 700; margin-top: 2px; }
+
+  .trades-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; }
+  .trades-head { padding: 14px 16px 10px; display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--line); }
+  .trades-head h3 { margin:0; font-size: 10.5px; letter-spacing:.8px; color: var(--dim); text-transform: uppercase; font-weight:700; }
+  .trades-head .count { font-family: var(--mono); color: var(--dim); font-size: 11px; }
+
+  .table-scroll { max-height: 480px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  thead th {
+    position: sticky; top: 0; background: #171c28; color: var(--dim);
+    text-align: left; padding: 8px 14px; font-size: 10.5px; letter-spacing: .5px;
+    text-transform: uppercase; border-bottom: 1px solid var(--line); z-index: 1;
+  }
+  tbody td { padding: 7px 14px; border-bottom: 1px solid var(--line); }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  td.num { text-align: right; }
+
+  .empty { padding: 40px; text-align: center; color: var(--dim); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <div class="title"><span class="dot" id="liveDot"></span><span id="botTitle">BOT — LOADING…</span></div>
+      <div class="sub" id="botSub">—</div>
+    </div>
+    <div class="status-pill" id="statusPill"><span class="sq"></span><span id="statusText">CONNECTING</span></div>
+  </div>
+
+  <div class="grid5">
+    <div class="card">
+      <h3>Position</h3>
+      <div class="row"><span class="k">Side</span><span class="v" id="posSide">—</span></div>
+      <div class="row"><span class="k">Entry Price</span><span class="v" id="posEntry">—</span></div>
+      <div class="row"><span class="k">Qty</span><span class="v" id="posQty">—</span></div>
+      <div class="row"><span class="k">Current SL</span><span class="v" id="posSL">—</span></div>
+      <div class="row"><span class="k">TP</span><span class="v" id="posTP">—</span></div>
+      <div class="row"><span class="k">Trail Stage</span><span class="v" id="posTrail">—</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Capital &amp; P&amp;L</h3>
+      <div class="row"><span class="k">Base Capital</span><span class="v" id="capBase">—</span></div>
+      <div class="row"><span class="k">Current Equity</span><span class="v" id="capEquity">—</span></div>
+      <div class="row"><span class="k">Today P&amp;L</span><span class="v" id="capToday">—</span></div>
+      <div class="row"><span class="k">Total P&amp;L</span><span class="v" id="capTotal">—</span></div>
+      <div class="row"><span class="k">Win Rate</span><span class="v" id="capWinrate">—</span></div>
+      <div class="row"><span class="k">Total Trades</span><span class="v" id="capTrades">—</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Risk &amp; Sizing</h3>
+      <div class="row"><span class="k">Mode</span><span class="v" id="riskMode">—</span></div>
+      <div class="row"><span class="k">Risk % / Trade</span><span class="v" id="riskPct">—</span></div>
+      <div class="row"><span class="k">Risk $ / Trade</span><span class="v" id="riskUsd">—</span></div>
+      <div class="row"><span class="k">Contract Value</span><span class="v" id="riskContract">—</span></div>
+      <div class="row"><span class="k">Calculated Qty</span><span class="v" id="riskQty">—</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Market Regime</h3>
+      <div class="row"><span class="k">Close</span><span class="v" id="mktClose">—</span></div>
+      <div class="row"><span class="k">EMA Fast / Trend</span><span class="v" id="mktEma">—</span></div>
+      <div class="row"><span class="k">ADX</span><span class="v" id="mktAdx">—</span></div>
+      <div class="row"><span class="k">RSI</span><span class="v" id="mktRsi">—</span></div>
+      <div class="row"><span class="k">Regime</span><span class="v" id="mktRegime">—</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Entry Filters</h3>
+      <div class="filters-wrap" id="filtersWrap">
+        <span class="badge fail">LOADING</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="eq-card">
+    <div class="eq-stats">
+      <div class="stat"><div class="k">Starting Cap</div><div class="v" id="eqStart">—</div></div>
+      <div class="stat"><div class="k">Current Equity</div><div class="v" id="eqCurrent">—</div></div>
+      <div class="stat"><div class="k">Peak Equity</div><div class="v" id="eqPeak">—</div></div>
+      <div class="stat"><div class="k">Max Drawdown</div><div class="v" id="eqDD">—</div></div>
+      <div class="stat"><div class="k">Net Return</div><div class="v" id="eqNet">—</div></div>
+    </div>
+    <canvas id="eqCanvas" height="160"></canvas>
+  </div>
+
+  <div class="trades-card">
+    <div class="trades-head">
+      <h3>Recent Trades (Last 200)</h3>
+      <span class="count" id="tradeCount">0 trades</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Time (IST)</th><th>Side</th><th class="num">Qty</th>
+            <th class="num">Entry Price</th><th class="num">Exit Price</th>
+            <th class="num">Realized P&amp;L ($)</th><th>Exit Reason</th>
+          </tr>
+        </thead>
+        <tbody id="tradesBody">
+          <tr><td colspan="8" class="empty">Loading trades…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────
+// Point these at your bot's real endpoints. Falls back to demo data if
+// either fetch fails (e.g. viewing this file standalone off the VPS).
+const STATUS_URL = '/api/status';   // bot_status, open_position, btc_price, etc.
+const TRADES_URL = '/api/trades';   // list of trade rows (existing dashboard/main.py route)
+const REFRESH_MS = 5000;
+
+function fmtMoney(n, digits = 2) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const s = n.toFixed(digits);
+  return (n >= 0 ? '$' : '-$') + Math.abs(n).toFixed(digits);
+}
+function fmtNum(n, digits = 2) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+function pnlClass(n) { return n > 0 ? 'pos' : (n < 0 ? 'neg' : ''); }
+function fmtIST(ts) {
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }).replace(',', '');
+  } catch (e) { return ts; }
+}
+
+// ── DEMO FALLBACK DATA (used only if live endpoints are unreachable) ──
+function demoStatus() {
+  return {
+    bot_status: 'LIVE',
+    btc_price: 4081.00,
+    open_position: { side: 'FLAT', entry_price: 0, qty: 0, current_sl: 0, tp: 0, trail_stage: 0 },
+    settings: {},
+    market: {
+      close: 4081.00, ema_fast: 4072.68, ema_trend: 4063.51,
+      adx: 45.7, rsi: 57.1, regime: 'TREND',
+      atr_ok: true, vol_ok: false, body_ok: false, filters_ok: false,
+      position_btc_size: 0.033, qty_lots: 1,
+    }
+  };
+}
+function demoTrades() {
+  const rows = []; let px = 4070; const now = Date.now();
+  for (let i = 0; i < 44; i++) {
+    const isLong = Math.random() > 0.45;
+    const entry = px;
+    const move = (Math.random() * 6 - 2.5);
+    const exit = entry + (isLong ? move : -move);
+    px = exit;
+    const pnl = (isLong ? exit - entry : entry - exit) * (0.9 + Math.random() * 0.2);
+    rows.push({
+      entry_time: new Date(now - (44 - i) * 9 * 60000).toISOString(),
+      side: isLong ? 'LONG' : 'SHORT',
+      qty: 85 + Math.floor(Math.random() * 30),
+      entry_price: entry, exit_price: exit,
+      net_pnl: pnl,
+      exit_reason: pnl > 0 ? 'Trail SL (stage 0)' : (Math.random() > 0.5 ? 'Initial SL' : 'Breakeven SL')
+    });
+  }
+  return rows.reverse();
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('bad status ' + res.status);
+  return await res.json();
+}
+
+function renderStatus(status) {
+  const live = status.bot_status === 'LIVE';
+  document.getElementById('liveDot').style.background = live ? 'var(--green)' : 'var(--red)';
+  document.getElementById('botTitle').textContent = live ? 'BOT — LIVE FEED' : 'BOT — ' + (status.bot_status || 'UNKNOWN');
+  document.getElementById('botSub').textContent = 'Last update: ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
+
+  const pill = document.getElementById('statusPill');
+  const txt = document.getElementById('statusText');
+  txt.textContent = status.bot_status || 'UNKNOWN';
+  pill.className = 'status-pill' + (live ? '' : ' err');
+
+  const p = status.open_position || {};
+  const sideEl = document.getElementById('posSide');
+  sideEl.innerHTML = p.side && p.side !== 'FLAT'
+    ? `<span class="badge ${p.is_long ? 'long' : 'short'}">${p.is_long ? 'LONG' : 'SHORT'}</span>`
+    : `<span class="badge flat">FLAT</span>`;
+  document.getElementById('posEntry').textContent = p.entry_price ? fmtNum(p.entry_price) : '—';
+  document.getElementById('posQty').textContent = p.qty || '—';
+  document.getElementById('posSL').textContent = p.current_sl ? fmtNum(p.current_sl) : '—';
+  document.getElementById('posTP').textContent = p.tp ? fmtNum(p.tp) : '—';
+  document.getElementById('posTrail').textContent = (p.trail_stage ?? '—') + ' / 5';
+
+  document.getElementById('mktClose').textContent = status.btc_price ? fmtNum(status.btc_price) : '—';
+}
+
+function renderCapital(trades, startingCap = 10000) {
+  const total = trades.length;
+  const wins = trades.filter(t => (t.net_pnl ?? t.real_pl ?? 0) > 0).length;
+  const totalPnl = trades.reduce((s, t) => s + (t.net_pnl ?? t.real_pl ?? 0), 0);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayPnl = trades
+    .filter(t => (t.entry_time || t.ts || '').slice(0, 10) === todayStr)
+    .reduce((s, t) => s + (t.net_pnl ?? t.real_pl ?? 0), 0);
+  const equity = startingCap + totalPnl;
+
+  document.getElementById('capBase').textContent = fmtMoney(startingCap);
+  document.getElementById('capEquity').textContent = fmtMoney(equity);
+  const todayEl = document.getElementById('capToday');
+  todayEl.textContent = fmtMoney(todayPnl); todayEl.className = 'v ' + pnlClass(todayPnl);
+  const totalEl = document.getElementById('capTotal');
+  totalEl.textContent = fmtMoney(totalPnl); totalEl.className = 'v ' + pnlClass(totalPnl);
+  document.getElementById('capWinrate').textContent = total ? ((wins / total) * 100).toFixed(1) + '%' : '—';
+  document.getElementById('capTrades').textContent = total;
+
+  return { equity, totalPnl, startingCap };
+}
+
+function renderRiskAndFilters(status) {
+  const m = status.market || {};
+  const qtyLots = m.qty_lots ?? '—';
+  const btcSize = m.position_btc_size ?? '—';
+
+  document.getElementById('riskMode').textContent = 'FIXED';
+  document.getElementById('riskPct').textContent = '—';
+  document.getElementById('riskUsd').textContent = '—';
+  document.getElementById('riskContract').textContent = btcSize !== '—' ? `${btcSize} BTC/lot` : '—';
+  document.getElementById('riskQty').textContent = qtyLots !== '—' ? `${qtyLots} lots (Fixed)` : '—';
+
+  document.getElementById('mktEma').textContent = (m.ema_fast && m.ema_trend)
+    ? `${fmtNum(m.ema_fast)} / ${fmtNum(m.ema_trend)}` : '—';
+  document.getElementById('mktAdx').textContent = m.adx ? fmtNum(m.adx, 1) : '—';
+  document.getElementById('mktRsi').textContent = m.rsi ? fmtNum(m.rsi, 1) : '—';
+  document.getElementById('mktRegime').textContent = m.regime || '—';
+
+  const badge = (label, ok) => `<span class="badge ${ok ? 'ok' : 'fail'}">${label} ${ok ? 'OK' : 'FAIL'}</span>`;
+  document.getElementById('filtersWrap').innerHTML = [
+    badge('ATR', !!m.atr_ok),
+    badge('VOL', !!m.vol_ok),
+    badge('BODY', !!m.body_ok),
+    badge('ALL', !!m.filters_ok),
+  ].join('');
+}
+
+function drawEquityCurve(trades, startingCap) {
+  const canvas = document.getElementById('eqCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 32;
+  canvas.width = w * dpr; canvas.height = 160 * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = '160px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, 160);
+
+  let equity = startingCap;
+  const points = [equity];
+  trades.forEach(t => { equity += (t.net_pnl ?? t.real_pl ?? 0); points.push(equity); });
+
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = (max - min) || 1;
+  const pad = 10;
+  const stepX = (w - pad * 2) / Math.max(points.length - 1, 1);
+  const toY = v => 160 - pad - ((v - min) / range) * (160 - pad * 2);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, 160);
+  grad.addColorStop(0, 'rgba(239,91,91,0.28)');
+  grad.addColorStop(1, 'rgba(239,91,91,0.0)');
+
+  ctx.beginPath();
+  points.forEach((v, i) => { const x = pad + i * stepX; const y = toY(v); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.lineTo(pad + (points.length - 1) * stepX, 160 - pad);
+  ctx.lineTo(pad, 160 - pad);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  points.forEach((v, i) => { const x = pad + i * stepX; const y = toY(v); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.strokeStyle = '#ef5b5b';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  const peak = Math.max(...points);
+  const dd = peak > 0 ? ((peak - Math.min(...points.slice(points.indexOf(peak)))) / peak) * 100 : 0;
+
+  document.getElementById('eqStart').textContent = fmtMoney(startingCap);
+  document.getElementById('eqCurrent').textContent = fmtMoney(equity);
+  document.getElementById('eqPeak').textContent = fmtMoney(peak);
+  document.getElementById('eqDD').textContent = dd.toFixed(2) + '%';
+  const net = equity - startingCap;
+  const netEl = document.getElementById('eqNet');
+  netEl.textContent = fmtMoney(net) + ' (' + ((net / startingCap) * 100).toFixed(2) + '%)';
+  netEl.className = 'v ' + pnlClass(net);
+}
+
+function renderTrades(trades) {
+  const body = document.getElementById('tradesBody');
+  document.getElementById('tradeCount').textContent = trades.length + ' trades';
+  if (!trades.length) {
+    body.innerHTML = '<tr><td colspan="8" class="empty">No trades yet</td></tr>';
+    return;
+  }
+  const last200 = trades.slice(-200).reverse();
+  body.innerHTML = last200.map((t, i) => {
+    const pnl = t.net_pnl ?? t.real_pl ?? 0;
+    const side = (t.side || (t.is_long ? 'LONG' : 'SHORT') || '').toUpperCase();
+    return `<tr>
+      <td>#${last200.length - i}</td>
+      <td>${fmtIST(t.entry_time || t.ts || '')}</td>
+      <td><span class="badge ${side === 'LONG' ? 'long' : 'short'}">${side}</span></td>
+      <td class="num">${t.qty ?? '—'}</td>
+      <td class="num">${fmtNum(t.entry_price)}</td>
+      <td class="num">${fmtNum(t.exit_price)}</td>
+      <td class="num ${pnlClass(pnl)}">${fmtMoney(pnl)}</td>
+      <td>${t.exit_reason || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function refresh() {
+  let status, trades, usingDemo = false;
+  try {
+    status = await fetchJSON(STATUS_URL);
+  } catch (e) { status = demoStatus(); usingDemo = true; }
+  try {
+    trades = await fetchJSON(TRADES_URL);
+  } catch (e) { trades = demoTrades(); usingDemo = true; }
+
+  if (usingDemo) {
+    document.getElementById('botSub').textContent = 'DEMO DATA — /api/status or /api/trades unreachable';
+  }
+
+  renderStatus(status);
+  const { equity, startingCap } = renderCapital(trades);
+  renderRiskAndFilters(status);
+  drawEquityCurve(trades, startingCap);
+  renderTrades(trades);
+}
+
+refresh();
+setInterval(refresh, REFRESH_MS);
+window.addEventListener('resize', () => refresh());
+</script>
+</body>
+</html>
